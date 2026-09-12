@@ -71,7 +71,7 @@
   <script>
   (()=>{
     'use strict';
-    const QUESTIONS=Array.isArray(window.QUESTIONS)?window.QUESTIONS:[];
+    const QUESTIONS=Array.isArray(window.QUESTIONS)?window.QUESTIONS:(Array.isArray(window.QUESTIONS_PARTS)?window.QUESTIONS_PARTS.flat():[]);
     const KEY='zhixing-learning-v2';
     const BOARD_ORDER=['水泥','钢筋','混凝土','砂石骨料','掺合料','砌块与砌墙砖','砂浆与防水','土工陶瓷石材','法律法规'];
     const KIND_ORDER=['单选','多选','判断','计算'];

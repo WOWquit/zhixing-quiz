@@ -105,6 +105,9 @@
     const BANKS=[...new Map(QUESTIONS.map(q=>[q.bankId,{id:q.bankId,name:q.bankName||q.bankId,shortName:q.bankShortName||q.bankName||q.bankId,description:q.bankDescription||'独立题库'}])).values()];
     const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const kindLabel=q=>q.category.slice(-2)==='计算'?'计算题':q.type==='single'?'单选题':q.type==='multiple'?'多选题':'判断题';
+    const COLLECTION_KIND_ORDER=['单选题','判断题','多选题','计算题'];
+    function sortCollectionIds(ids){return ids.map((id,pos)=>({id,pos,rank:COLLECTION_KIND_ORDER.indexOf(kindLabel(qById(id)))})).sort((a,b)=>(a.rank<0?99:a.rank)-(b.rank<0?99:b.rank)||a.pos-b.pos).map(x=>x.id)}
+    function normalizeCollectionSession(s){if(!s||!['wrong','bookmarks'].includes(s.mode)||s.groupedByType)return;const current=s.ids[s.index],sorted=sortCollectionIds(s.ids);s.ids=sorted;s.index=Math.max(0,sorted.indexOf(current));s.groupedByType=true;answerSheetSession=null;save()}
     const emptyState=()=>({version:1,questions:{},recent:[],exams:[],examTotal:0,session:null,practiceStash:null,activeBankId:BANKS[0]?.id||DEFAULT_BANK_ID});
     let corrupted=false, state=loadState(), activeCollection='wrong', activeCategory='all', examHistoryExpanded=false, viewedExamId=null, toastTimer, examTimer, answerSheetSession=null, answerButtons=[], answerGroups=[], lastAnswerIndex=-1;
     function loadState(){try{const raw=localStorage.getItem(KEY);if(!raw)return emptyState();const v=JSON.parse(raw);if(!v||v.version!==1||typeof v.questions!=='object'||!Array.isArray(v.recent))throw new Error('invalid');const next={...emptyState(),...v};if(!Array.isArray(next.exams))next.exams=[];if(!next.practiceStash||typeof next.practiceStash!=='object')next.practiceStash=null;if(!Number.isFinite(next.examTotal)||next.examTotal<next.exams.length)next.examTotal=next.exams.length;if(!BANKS.some(b=>b.id===next.activeBankId))next.activeBankId=BANKS[0]?.id||DEFAULT_BANK_ID;if(next.session){const validIds=Array.isArray(next.session.ids)&&next.session.ids.length&&next.session.ids.every(id=>QUESTION_BY_ID.has(id)),validExam=next.session.mode!=='exam'||(next.session.exam&&Number.isFinite(next.session.exam.startedAt)&&Number.isFinite(next.session.exam.deadlineAt));if(!validIds||!validExam)next.session=null;else{next.session.index=Math.max(0,Math.min(Number(next.session.index)||0,next.session.ids.length-1));if(!next.session.bankId){const first=QUESTION_BY_ID.get(next.session.ids[0]);next.session.bankId=first?.bankId||next.activeBankId}}}return next}catch(e){corrupted=true;return emptyState()}}
@@ -210,6 +213,7 @@
     function renderAnswerSheet(){
       const s=state.session;
       if(!s)return;
+      normalizeCollectionSession(s);
       decorateReviewAnswer();
       const exam=s.mode==='exam',review=s.mode==='review',collection=s.mode==='wrong'||s.mode==='bookmarks',grouped=exam||review||collection,grid=document.getElementById('answer-grid'),rebuild=answerSheetSession!==s||answerButtons.length!==s.ids.length;
       const buttonHTML=(id,i)=>{const detail=answerButtonDetails(s,id,i,exam);return`<button class="answer-number ${detail.classes.join(' ')}" data-jump="${i}" aria-label="第${i+1}题，${detail.label}" ${i===s.index?'aria-current="step"':''}>${i+1}</button>`};
@@ -228,7 +232,7 @@
           }
           grid.innerHTML=groups.map(g=>`<section class="answer-group" aria-label="${esc(g.label)}"><div class="answer-group-title"><strong>${esc(g.label)}</strong><span>${groupSummary(g)}</span></div><div class="answer-group-grid">${g.items.map(x=>buttonHTML(x.id,x.i)).join('')}</div></section>`).join('')
         }else grid.innerHTML=s.ids.map(buttonHTML).join('');
-        answerButtons=[...document.querySelectorAll('#answer-grid .answer-number')];
+        answerButtons=[];document.querySelectorAll('#answer-grid .answer-number').forEach(button=>{answerButtons[Number(button.dataset.jump)]=button});
         answerGroups=grouped?[...document.querySelectorAll('#answer-grid .answer-group')].map((element,i)=>({...groups[i],title:element.querySelector('.answer-group-title span')})):[];
         answerSheetSession=s;
         lastAnswerIndex=-1;
